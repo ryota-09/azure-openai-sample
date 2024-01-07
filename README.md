@@ -23,3 +23,7 @@ docker compose run --entrypoint "poetry install --no-root" demo-app
 docker compose build --no-cache
 docker compose up
 ```
+
+```
+docker-compose --env-file .env up
+```

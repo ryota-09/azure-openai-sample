@@ -9,9 +9,10 @@ services:
       - 8000:8000
     environment:
       - WATCHFILES_FORCE_POLLING=true
+      - MY_ENV=${MY_ENV}
   db:
     image: mysql:8.0
-    environment: 
+    environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
       MYSQL_DATABASE: 'demo'
       TZ: 'Asia/Tokyo'
