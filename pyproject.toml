@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "azure-openai-sample"
+version = "0.1.0"
+description = ""
+authors = ["ryota-09 <n.ryo950911@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
