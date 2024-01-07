@@ -9,7 +9,7 @@ services:
       - 8000:8000
     environment:
       - WATCHFILES_FORCE_POLLING=true
-      - MY_ENV=${MY_ENV}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
   db:
     image: mysql:8.0
     environment:

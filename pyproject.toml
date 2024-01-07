@@ -10,6 +10,7 @@ packages = [{include = "demo_app"}]
 python = "^3.11"
 fastapi = "^0.108.0"
 uvicorn = "^0.25.0"
+openai = "0.28.1"
 
 [build-system]
 requires = ["poetry-core"]
