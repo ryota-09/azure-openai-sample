@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 import os
 import openai
+from azure.core.credentials import AzureKeyCredential
+from azure.search.documents import SearchClient
 
 app = FastAPI()
 

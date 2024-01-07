@@ -10,6 +10,8 @@ services:
     environment:
       - WATCHFILES_FORCE_POLLING=true
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_SEARCH_SERVICE_ENDPOINT=${AZURE_SEARCH_SERVICE_ENDPOINT}
+      - AZURE_SEARCH_API_KEY=${AZURE_SEARCH_API_KEY}
   db:
     image: mysql:8.0
     environment:
