@@ -4,10 +4,12 @@ version = "0.1.0"
 description = ""
 authors = ["ryota-09 <n.ryo950911@gmail.com>"]
 readme = "README.md"
+packages = [{include = "demo_app"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-
+fastapi = "^0.108.0"
+uvicorn = "^0.25.0"
 
 [build-system]
 requires = ["poetry-core"]
