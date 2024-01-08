@@ -5,18 +5,21 @@ import time
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
-    ComplexField,
     CorsOptions,
     SearchIndex,
-    ScoringProfile,
     SearchFieldDataType,
     SearchField,
     SimpleField,
     SearchableField,
     VectorSearch,
-    HnswVectorSearchAlgorithmConfiguration
+    HnswVectorSearchAlgorithmConfiguration,
+    SemanticConfiguration,
+    SemanticField,
+    SemanticSettings,
+    PrioritizedFields
 )
 from azure.search.documents import SearchClient
+from azure.search.documents.models import Vector
 
 app = FastAPI()
 
@@ -195,3 +198,130 @@ async def uploadVector():
     client = SearchClient(endpoint=endpoint, index_name=index_name, credential=AzureKeyCredential(key))
     result = client.upload_documents(documents=VECOR_DOCUMENT)
     return {"upload": result[0]}
+
+key_word = "楽器を含む絵画"
+
+@app.get("/searchWithVector")
+async def searchWithVector():
+    response_search_word_vector = openai.Embedding.create(input=key_word, engine="sampleEmbedding")
+    client = SearchClient(endpoint=endpoint, index_name=index_name, credential=AzureKeyCredential(key))
+    results = client.search(search_text="", include_total_count=True, vectors=[Vector(
+        value=response_search_word_vector["data"][0]["embedding"],
+        k=3,
+        fields="description_vector"
+    )])
+    print("件数:",results.get_count())
+    for result in results:
+        print("id:",result["id"])
+        print("title:",result["title"])
+        print("artist:",result["artist"])
+        print("description:",result["description"])
+        print("category:",result["category"])
+        print("creation_date:",result["creation_date"])
+
+semantic_index_name = "index-semantic"
+
+semantic_fields = [
+    SimpleField(name="id", type=SearchFieldDataType.String, key=True),
+    SearchableField(name="title", type=SearchFieldDataType.String, searchable=True, retrievable=True, analyzer_name="ja.microsoft"),
+    SearchField(name="title_vector", type=SearchFieldDataType.Collection(SearchFieldDataType.Single), searchable=True, vector_search_dimensions=1536, vector_search_configuration="vectorConfig"),
+    SearchableField(name="artist", type=SearchFieldDataType.String, searchable=True, retrievable=True, analyzer_name="ja.microsoft"),
+    SearchableField(name="description", type=SearchFieldDataType.String, searchable=True, retrievable=True, analyzer_name="ja.microsoft"),
+    SearchField(name="description_vector", type=SearchFieldDataType.Collection(SearchFieldDataType.Single), searchable=True, vector_search_dimensions=1536, vector_search_configuration="vectorConfig")
+]
+
+semantic_config = SemanticConfiguration(
+    name="my-semantic-config",
+    prioritized_fields=PrioritizedFields(title_field=SemanticField(field_name="title"), prioritized_content_fields=[SemanticField(field_name="description")]),
+)
+
+semantic_settings = SemanticSettings(configurations=[semantic_config])
+
+@app.get("/createIndexWithSemantic")
+async def createIndexWithSemantic():
+    client = SearchIndexClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+    semantic_index = SearchIndex(name=semantic_index_name, fields=semantic_fields,semantic_settings=semantic_settings,scoring_profiles=scoring_profiles, vector_search=vector_search, cors_options=cors_options)
+    result = client.create_index(semantic_index)
+    return {"index": "created", "result": result}
+
+
+SEMANTIC_DOCUMENT = [
+    {
+        "id": "1",
+        "title": "フィンセント・ファン・ゴッホ",
+        "title_vector": "",
+        "description": "フィンセント・ウィレム・ファン・ゴッホは、オランダの画家。後期印象派の画家として知られる。代表作に『ひまわり』『星月夜』『刈った麦の束』などがある。",
+        "description_vector": "",
+    },
+    {
+        "id": "2",
+        "title": "パブロ・ピカソ",
+        "title_vector": "",
+        "artist": "パブロ・ピカソ",
+        "description": "パブロ・ピカソは、スペインの画家、彫刻家、陶芸家、舞台美術家、詩人。キュビスムの創始者として知られる。代表作に『ゲルニカ』『泣く女』『老いたギタリスト』などがある。",
+        "description_vector": "",
+    },
+    {
+        "id": "3",
+        "title": "ジャン＝フランソワ・ミレー",
+        "title_vector": "",
+        "artist": "パブロ・ピカソ",
+        "description": "ミレーは、フランスの画家。バルビゾン派の画家として知られる。代表作に『落穂拾い』『晩鐘』『種まく人』などがある。",
+        "description_vector": ""
+    }
+]
+
+@app.get("/uploadSemantic")
+async def uploadSemantic():
+    for doc in SEMANTIC_DOCUMENT:
+        # ベクトル化
+        response_title = openai.Embedding.create(input=[doc["title"]], engine="sampleEmbedding")
+        doc["title_vector"] = response_title["data"][0]["embedding"]
+        time.sleep(30)
+        response_description = openai.Embedding.create(input=[doc["description"]], engine="sampleEmbedding")
+        doc["description_vector"] = response_description["data"][0]["embedding"]
+        time.sleep(30)
+    client = SearchClient(endpoint=endpoint, index_name=semantic_index_name, credential=AzureKeyCredential(key))
+    result = client.upload_documents(documents=SEMANTIC_DOCUMENT)
+    return {"upload": result[0]}
+
+semantic_search_word = "戦争をテーマにした絵画"
+
+@app.get("/searchWithSemantic")
+async def searchWithSemantic():
+    client = SearchClient(endpoint=endpoint, index_name=semantic_index_name, credential=AzureKeyCredential(key))
+    results = client.search(search_text=semantic_search_word, select=["title", "description"],query_type="semantic", query_language="ja-JP", semantic_configuration_name="my-semantic-config", query_caption="extractive", query_answer="extractive", top=10)
+    for result in results:
+        print("title:",result["title"])
+        print("description:",result["description"])
+        captions = result["@search.captions"]
+        if captions:
+            print("caption:",captions[0])
+
+@app.get("/searchWithSemanticAndVector")
+async def searchWithSemanticAndVector():
+    response_search_word_vector = openai.Embedding.create(input=semantic_search_word, engine="sampleEmbedding")
+    client = SearchClient(endpoint=endpoint, index_name=semantic_index_name, credential=AzureKeyCredential(key))
+    results = client.search(
+        search_text=semantic_search_word, 
+        include_total_count=True, 
+        vectors=[Vector(
+            value=response_search_word_vector["data"][0]["embedding"],
+            k=3,
+            fields="description_vector"
+        )], 
+        select=["title", "description"],
+        query_type="semantic", 
+        query_language="ja-JP", 
+        semantic_configuration_name="my-semantic-config", 
+        query_caption="extractive", 
+        query_answer="extractive", 
+        top=10
+    )
+    for result in results:
+        print("title:",result["title"])
+        print("description:",result["description"])
+        captions = result["@search.captions"]
+        if captions:
+            print("caption:",captions[0])
+
