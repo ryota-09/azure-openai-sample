@@ -10,7 +10,7 @@ packages = [{include = "demo_app"}]
 python = "^3.11"
 fastapi = "^0.108.0"
 uvicorn = "^0.25.0"
-openai = "0.28.1"
+openai = {version = "0.28", extras = ["datalib"]}
 azure-search-documents = "11.4.0b8"
 
 [build-system]
