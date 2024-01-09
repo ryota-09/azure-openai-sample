@@ -325,3 +325,37 @@ async def searchWithSemanticAndVector():
         if captions:
             print("caption:",captions[0])
 
+# ==========================
+
+question = "ミレーについて教えて"
+
+@app.get("/sampleRAG")
+async def sampleRAG():
+    response = openai.Embedding.create(input=question, engine="sampleEmbedding")
+    embeddings = response["data"][0]["embedding"]
+    search_client = SearchClient(endpoint=endpoint, index_name=semantic_index_name, credential=AzureKeyCredential(key))
+    results = search_client.search(
+        search_text=question,
+        include_total_count=True,
+        vectors=[Vector(
+            value=embeddings,
+            k=3,
+            fields="description_vector"
+        )],
+        select=["description"],
+        top=1
+    )
+    search_result = []
+    for result in results:
+        search_result += f"\n・{result['description']}"
+    system_prompt = "あなたは優秀なサポートAIです。ユーザーから提供される情報をベースにあなたが学習している情報を付加して回答してください。"
+    user_prompt = f"Q: {question}\nA: 参考情報:{search_result}"
+    response = openai.ChatCompletion.create(
+        engine="sampleChatModel1",
+        messages=[
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": user_prompt },
+        ],
+    )
+    text = response["choices"][0]["message"]["content"].replace("\n", "").replace(" .", ".").strip()
+    return {"message": text}
