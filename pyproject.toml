@@ -13,6 +13,8 @@ uvicorn = "^0.25.0"
 openai = {version = "0.28", extras = ["datalib"]}
 azure-search-documents = "11.4.0b8"
 langchain = "0.0.335"
+tiktoken = "^0.5.2"
+azure-identity = "^1.15.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -25,5 +25,5 @@ docker compose up
 ```
 
 ```
-docker-compose --env-file .env up
+docker-compose --env-file .env up 
 ```

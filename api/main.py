@@ -21,6 +21,18 @@ from azure.search.documents.indexes.models import (
 from azure.search.documents import SearchClient
 from azure.search.documents.models import Vector
 
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.vectorstores.azuresearch import AzureSearch
+from langchain.document_loaders import TextLoader
+from langchain.text_splitter import CharacterTextSplitter
+
+from langchain.chat_models import AzureChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain.schema import (
+    SystemMessage,
+    HumanMessage
+)
+
 app = FastAPI()
 
 openai.api_type = "azure"
@@ -359,3 +371,73 @@ async def sampleRAG():
     )
     text = response["choices"][0]["message"]["content"].replace("\n", "").replace(" .", ".").strip()
     return {"message": text}
+
+# ==========================
+
+# openai.api_baseに相当するもの
+AZURE_OPENAI_API_BASE = "https://sample-instance.openai.azure.com/"
+AZURE_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+documents = "Azure OpenAl Serviceは、GPT-4、GPT-35-Turbo、Embeddings モデル シリーズを含むOpenAIの強力な言語モデルへの REST APIアクセスを提供します。さらに、新しい GPT-4 および gpt-35-turboモデル シリーズが一般提供になりました。これらのモデルは、コンテンツ生成、要約、セマンティック検索、自然言語からコードへの変換などを含む特定のタスクに簡単に適合させることができます。ユーザーは、REST API、Python SDK、または Azure OpenAI Studio の Web ベースのインターフェイスを通じてサービスにアクセスできます。"
+
+
+@app.get("/ragWithLLM")
+async def ragWithLLM():
+    embeddings = OpenAIEmbeddings(
+        openai_api_type="azure",
+        model="text-embedding-ada-002",
+        openai_api_base=AZURE_OPENAI_API_BASE,
+        openai_api_key=AZURE_OPENAI_API_KEY,
+        deployment="sampleEmbedding"
+    )
+    index_name = "langchain-search-demo"
+    vector_store = AzureSearch(
+        azure_search_endpoint=endpoint,
+        azure_search_key=key,
+        index_name=index_name,
+        embedding_function=embeddings.embed_query
+    )
+    # なぜかエラーになる。。RuntimeError: Error loading long_text.txt
+    # loader = TextLoader("long_text.txt", encoding="utf-8")
+    # documents = loader.load()
+    text_spliter = CharacterTextSplitter(
+        chunk_size=100,
+        chunk_overlap=0,
+    )
+    docs = text_spliter.create_documents(documents)
+    vector_store.add_documents(docs)
+    texts = vector_store.similarity_search(
+        query="GPT-4を使ってどんなことができるの？",
+        k=3,
+        search_type="similarity",
+    )
+    return {"message": texts[0].page_content}
+
+template = PromptTemplate.from_template("{keyword}を解説する書籍のタイトル案は？")
+prompt = template.format(keyword="ChatGPT")
+
+@app.get("/usePromptTemplate")
+async def usePromptTemplate():
+    chat = AzureChatOpenAI(
+        openai_api_base=AZURE_OPENAI_API_BASE,
+        openai_api_version="2023-07-01-preview",
+        deployment_name="sampleChatModel1",
+        openai_api_type="azure",
+        )   
+    output = chat.predict(prompt)
+    return {"message": output}
+
+@app.get("/langChainSample")
+async def langChainSample():
+    chat = AzureChatOpenAI(
+        openai_api_base=AZURE_OPENAI_API_BASE,
+        openai_api_version="2023-07-01-preview",
+        deployment_name="sampleChatModel1",
+        openai_api_key=AZURE_OPENAI_API_KEY,
+        openai_api_type="azure",
+        )   
+    output = chat([
+        SystemMessage(content="日本語で回答してください。"),
+        HumanMessage(content="ChatGPTについて30文字で教えて。"),
+    ])
+    return {"message": output}
