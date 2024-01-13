@@ -32,6 +32,8 @@ from langchain.schema import (
     SystemMessage,
     HumanMessage
 )
+from langchain.chains import LLMChain
+from langchain.output_parsers import CommaSeparatedListOutputParser
 
 app = FastAPI()
 
@@ -440,4 +442,40 @@ async def langChainSample():
         SystemMessage(content="日本語で回答してください。"),
         HumanMessage(content="ChatGPTについて30文字で教えて。"),
     ])
+    return {"message": output}
+
+@app.get("/langChainSampleWithChain")
+async def langChainSampleWithChain():
+    chat = AzureChatOpenAI(
+        openai_api_base=AZURE_OPENAI_API_BASE,
+        openai_api_version="2023-07-01-preview",
+        deployment_name="sampleChatModel1",
+        openai_api_key=AZURE_OPENAI_API_KEY,
+        openai_api_type="azure",
+        )
+    prompt = PromptTemplate(
+        input_variables=["job"],
+        template="{job}がよく使うMicrosoft製品を一つ教えて"
+    )
+    chain = LLMChain(llm=chat, prompt=prompt)
+    return {"message": chain("AIエンジニア")}
+
+@app.get("/langChainSampleWithChainAndParser")
+async def langChainSampleWithChainAndParser():
+    output_parser = CommaSeparatedListOutputParser()
+    format_instructions = output_parser.get_format_instructions()
+    prompt = PromptTemplate(
+        template="今後おすすめの{subject}は？ n{format_instructions}",
+        input_variables=["subject"],
+        partial_variables={"format_instructions": format_instructions}
+    )
+    llm = AzureChatOpenAI(
+        openai_api_base=AZURE_OPENAI_API_BASE,
+        openai_api_version="2023-07-01-preview",
+        deployment_name="sampleChatModel1",
+        openai_api_key=AZURE_OPENAI_API_KEY,
+        openai_api_type="azure",
+    )
+    _input = prompt.format(subject="プログラミング言語")
+    output = llm([HumanMessage(content=_input)]).content
     return {"message": output}
