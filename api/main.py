@@ -2,6 +2,7 @@ from fastapi import FastAPI
 import os
 import openai
 import time
+import asyncio
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -37,6 +38,9 @@ from langchain.output_parsers import CommaSeparatedListOutputParser
 
 import semantic_kernel as sk
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+
+from semantic_kernel.core_skills.text_skill import TextSkill
+from semantic_kernel.planning.basic_planner import BasicPlanner
 
 app = FastAPI()
 
@@ -496,3 +500,21 @@ async def summarizeWithKernel():
     summarize = kernel.create_semantic_function(prompt, max_tokens=2000, temperature=0.2, top_p=0.5)
     summary = summarize(input_text)
     return {"message": summary}
+
+
+@app.get("/usePlanner")
+async def usePlanner():
+    kernel.add_text_completion_service("dv", AzureChatCompletion("sampleChatModel1", endpoint, AZURE_OPENAI_API_KEY))
+    
+    ask = "明日はクリスマスデートだ。デートのアイデアをいくつか考えないと。彼女は英語を話すので、英語で書きましょう。テキストを大文字に変換しなさい。"
+    
+    plugin_directory = "./samples/plugins"
+    summarize_plugin = kernel.import_semantic_skill_from_directory(plugin_directory, "SummarizeSkill")
+    writer_plugin = kernel.import_semantic_skill_from_directory(plugin_directory, "WriterSkill")
+    text_plugin = kernel.import_semantic_skill_from_directory(plugin_directory, "TextSkill")
+    
+    planner = BasicPlanner()
+    basic_plan = await planner.create_plan_async(ask, kernel)
+    
+    results = await planner.execute_plan_async(basic_plan, kernel)
+    return {"message": results}
