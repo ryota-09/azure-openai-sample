@@ -35,6 +35,9 @@ from langchain.schema import (
 from langchain.chains import LLMChain
 from langchain.output_parsers import CommaSeparatedListOutputParser
 
+import semantic_kernel as sk
+from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+
 app = FastAPI()
 
 openai.api_type = "azure"
@@ -479,3 +482,17 @@ async def langChainSampleWithChainAndParser():
     _input = prompt.format(subject="プログラミング言語")
     output = llm([HumanMessage(content=_input)]).content
     return {"message": output}
+
+# ==========================
+
+kernel = sk.Kernel()
+
+input_text = "GPT-4（ジーピーティーフォー、Generative Pre-trained Transformer 4)とは、OpenAIによってて開発されたマルチモーダル（英語版）大規模言語モデルである［1]。2923年3月14日に公開された［2]。自然言語処理にTransformerを採用しており、教師なし学習によってて大規模なニューラルネットワークを学習させ、その後、人間のフィードバックからの強化学習（RLHF）を行っている［31]マイクロソフトは公表前から本言語モデルをBingに搭載していた[4］。OpenAlはGPT-4を発表した記事において、「GPT-4はGPT-3.5よりも遅かに創造的で信頼性が高く、よりて細かい指示に対応できる」と紹介している[2]。GPT-4は25000語以上のテキストを同時に読み取ることができ、これは以前のバージョンに比べると大幅に改良されている[5][6］。GPT-4は「安全性のリスク」と「競争上のリスク」を考慮し、あえてパラメータを明示するのを控えている。技術報告書内では人間とAIのデータを用いて強化学習を行ったという事実以外は、モデルサイズ、ハードウェア、アーキテクチャ、トレーニング方法、訓練データ、人間のフィードバックからの強化学習に何人月7を投じたかなどの開示はしていない[31]。そのため、GPT-4の正確なパラメータ数は不明である。ザ・ヴァージはGPT-3は1750億個のパラメータを持つのに対してGPT-4は109兆個のパラメータを持つとて報じていたが前述の理由でOpenAIのCE0であるサム・アルトマンはこれを「まったくのでたらめだ」と否定している[7］"
+
+@app.get("/summarizeWithKernel")
+async def summarizeWithKernel():
+    kernel.add_text_completion_service("dv", AzureChatCompletion("sampleChatModel1", endpoint, AZURE_OPENAI_API_KEY))
+    prompt = """{{$input}}上記の内容を200文字以内で要約してください。"""
+    summarize = kernel.create_semantic_function(prompt, max_tokens=2000, temperature=0.2, top_p=0.5)
+    summary = summarize(input_text)
+    return {"message": summary}
