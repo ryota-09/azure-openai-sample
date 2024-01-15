@@ -1,8 +1,10 @@
+import json
 from fastapi import FastAPI
 import os
 import openai
 import time
 import asyncio
+from pydantic import BaseModel
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -35,6 +37,7 @@ from langchain.schema import (
 )
 from langchain.chains import LLMChain
 from langchain.output_parsers import CommaSeparatedListOutputParser
+import requests
 
 import semantic_kernel as sk
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
@@ -121,6 +124,20 @@ index = SearchIndex(
     scoring_profiles=scoring_profiles,
     cors_options=cors_options,
 )
+
+class ImagePrompt(BaseModel):
+    prompt: str
+
+@app.post("/createImageWithDalle")
+async def createImageWithDalle(prompt: ImagePrompt):
+    # リクエストボディからテキストを取得
+    response = openai.Image.create(
+        prompt=prompt.prompt,
+        size='1024x1024',
+        n=1
+    )
+    image_url = response["data"][0]["url"]
+    return {"image_url": image_url}
 
 @app.get("/search")
 async def search():
@@ -518,3 +535,76 @@ async def usePlanner():
     
     results = await planner.execute_plan_async(basic_plan, kernel)
     return {"message": results}
+
+# ==========================
+
+functions = [
+    {
+        "name": "get_current_weather",
+        "description": "対象地点の現在の天気を取得します。",
+        "parameters": {
+            "type": "object",
+            "location": {
+                "type": "string",
+                "description": "都道府県や市区町村　例:東京都港区"
+            },
+            "required": ["location"]
+        }
+    }
+]
+
+messages = [{ "role": "system", "content": "あなたは優秀なサポートAIです。Bing Searchで最新情報を検索し、検索結果を要約してください。" }, { "role": "user", "content": ""}]
+
+def get_bing_search(query: str) -> list:
+    bing_endpoint = os.getenv("BING_SEARCH_ENDPOINT")
+    headers = {"Ocp-Apim-Subscription-Key": os.getenv("BING_SEARCH_KEY")}
+    
+    params = {
+        "q": query,
+        "count": 3,
+        "mkt": "ja-JP",
+        "safeSearch": "Strict",
+        "responseFilter": "Webpages",
+    }
+    response = requests.get(bing_endpoint, headers=headers, params=params)
+    response.raise_for_status()
+    search_results = response.json()
+    return search_results["webPages"]["value"]
+
+def get_current_weather(location: str) -> str:
+    
+    return 
+
+@app.get("/useFunctionCalling")
+async def useFunctionCalling():
+    response = openai.ChatCompletion.create(
+        engine="sampleChatModel1",
+        messages=messages,
+        functions=functions,
+        function_call="auto",
+        max_tokens=1000,
+        temperature=0
+    )
+    response_message = response["choices"][0]["message"]
+    
+    if response.choices[0].finish_reason == "function_call":
+        # モデルが関数呼び出しを決定した場合
+        function_name = response_message["function_call"]["name"]
+        available_functions = {
+            "get_current_weather": get_current_weather
+        }
+        function_to_call = available_functions[function_name]
+        function_args = json.loads(response_message["function_call"]["arguments"])
+        function_response = function_to_call(**function_args)
+        
+        formatted_function_response = json.dumps(function_response, indent=2, ensure_ascii=False)
+        messages.append({"role": "assistant", "content": formatted_function_response})
+        second_response = openai.ChatCompletion.create(
+            engine="sampleChatModel1",
+            messages=messages,
+            max_tokens=1000,
+            temperature=0
+        )
+        return {"message": second_response["choices"][0]["message"]["content"]}
+    else:
+        return {"message": response["choices"][0].message.content}
