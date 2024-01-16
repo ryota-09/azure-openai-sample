@@ -45,6 +45,8 @@ from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.core_skills.text_skill import TextSkill
 from semantic_kernel.planning.basic_planner import BasicPlanner
 
+from schemas import GetEventResponse
+
 app = FastAPI()
 
 openai.api_type = "azure"
@@ -608,3 +610,5 @@ async def useFunctionCalling():
         return {"message": second_response["choices"][0]["message"]["content"]}
     else:
         return {"message": response["choices"][0].message.content}
+
+
